@@ -13,6 +13,8 @@ Description: Cortico-Basal Ganglia Network Model implemented in PyNN using the s
 @author: John Fleming, john.fleming@ucdconnect.ie
 """
 
+import pathlib
+
 import neuron
 h = neuron.h
 
@@ -158,7 +160,7 @@ if __name__ == '__main__':
 	
 	# Save/load Striatal Spike times
 	#np.save('Striatal_Spike_Times.npy', striatal_spike_times)		# Save spike times so they can be reloaded 
-	striatal_spike_times =  np.load('Striatal_Spike_Times.npy')		# Load spike times from file
+	striatal_spike_times =  np.load('Striatal_Spike_Times.npy', allow_pickle=True)		# Load spike times from file
 	for i in range(0,Pop_size):
 		spike_times = striatal_spike_times[i][0].value
 		spike_times = spike_times[spike_times>steady_state_duration]
@@ -509,8 +511,14 @@ if __name__ == '__main__':
 		write_index = "{:.0f}_".format(controller_call_index)
 		suffix = "_{:.0f}ms-{:.0f}ms".format(last_write_time, simulator.state.t)
 		controller_label = controller.get_label()
-		
-		STN_Pop.write_data("/Simulation_Output_Results/Controller_Simulations/Amp/"+controller_label+"/STN_Pop/"+write_index+"STN_Soma_v"+suffix+".mat", 'soma(0.5).v', clear=True)
+
+		p_output = pathlib.Path("/home/jyao/Downloads")
+		p_output_full = p_output / "Simulation_Output_Results" / "Controller_Simulations" / " Amp" / controller_label / "STN_Pop"
+		p_output_full.mkdir(parents=True, exist_ok=True)
+
+		f_output = write_index+"STN_Soma_v"+suffix+".mat"
+
+		STN_Pop.write_data(str(p_output_full / f_output), clear=True)
 		
 		last_write_time = simulator.state.t
 	
@@ -528,11 +536,16 @@ if __name__ == '__main__':
 	controller_measured_beta_values = np.asarray(controller.get_state_history())
 	controller_measured_error_values = np.asarray(controller.get_error_history()) 
 	controller_output_values = np.asarray(controller.get_output_history())
-	controller_sample_times = np.asarray(controller.get_sample_times()) 
-	np.savetxt("/Simulation_Output_Results/Controller_Simulations/Amp/"+controller_label+"/controller_beta_values.csv", controller_measured_beta_values, delimiter=',')
-	np.savetxt("/Simulation_Output_Results/Controller_Simulations/Amp/"+controller_label+"/controller_error_values.csv", controller_measured_error_values, delimiter=',')
-	np.savetxt("/Simulation_Output_Results/Controller_Simulations/Amp/"+controller_label+"/controller_amplitude_values.csv", controller_output_values, delimiter=',')	
-	np.savetxt("/Simulation_Output_Results/Controller_Simulations/Amp/"+controller_label+"/controller_sample_times.csv", controller_sample_times, delimiter=',')
+	controller_sample_times = np.asarray(controller.get_sample_times())
+
+	p_output = pathlib.Path("/home/jyao/Downloads")
+	p_output_full = p_output / "Simulation_Output_Results" / "Controller_Simulations" / " Amp" / controller_label
+	p_output_full.mkdir(parents=True, exist_ok=True)
+
+	np.savetxt(str(p_output_full / "controller_beta_values.csv"), controller_measured_beta_values, delimiter=',')
+	np.savetxt(str(p_output_full / "controller_error_values.csv"), controller_measured_error_values, delimiter=',')
+	np.savetxt(str(p_output_full / "controller_amplitude_values.csv"), controller_output_values, delimiter=',')
+	np.savetxt(str(p_output_full / "controller_sample_times.csv"), controller_sample_times, delimiter=',')
 	
 	# Write the STN LFP to .mat file
 	STN_LFP_Block = neo.Block(name='STN_LFP')
@@ -541,7 +554,7 @@ if __name__ == '__main__':
 	STN_LFP_signal = neo.AnalogSignal(STN_LFP, units='mV', t_start=0*pq.ms, sampling_rate=pq.Quantity(simulator.state.dt, '1/ms'))
 	STN_LFP_seg.analogsignals.append(STN_LFP_signal)
 	
-	w = neo.io.NeoMatlabIO(filename="/Simulation_Output_Results/Controller_Simulations/Amp/"+controller_label+"/STN_LFP.mat") 
+	w = neo.io.NeoMatlabIO(filename=str(p_output_full / "STN_LFP.mat"))
 	w.write_block(STN_LFP_Block)
 	
 	"""
@@ -573,7 +586,7 @@ if __name__ == '__main__':
 	DBS_times = neo.AnalogSignal(DBS_times_neuron, units='ms', t_start=DBS_times_neuron*pq.ms, sampling_rate=pq.Quantity(1.0/simulator.state.dt, '1/ms'))
 	DBS_Signal_seg.analogsignals.append(DBS_times)
 	
-	w = neo.io.NeoMatlabIO(filename="/Simulation_Output_Results/Controller_Simulations/Amp/"+controller_label+"/DBS_Signal.mat") 
+	w = neo.io.NeoMatlabIO(filename=str(p_output_full / "DBS_Signal.mat"))
 	w.write_block(DBS_Block)
 
 	print("Simulation Done!")
