@@ -512,8 +512,8 @@ if __name__ == '__main__':
 		suffix = "_{:.0f}ms-{:.0f}ms".format(last_write_time, simulator.state.t)
 		controller_label = controller.get_label()
 
-		p_output = pathlib.Path("/home/jyao/Downloads")
-		p_output_full = p_output / "Simulation_Output_Results" / "Controller_Simulations" / " Amp" / controller_label / "STN_Pop"
+		p_output = pathlib.Path("/home/jyao/local/data/starrlab/CBG_network_sim")
+		p_output_full = p_output / "Simulation_Output_Results" / "Controller_Simulations" / "Amp" / controller_label / "STN_Pop"
 		p_output_full.mkdir(parents=True, exist_ok=True)
 
 		f_output = write_index+"STN_Soma_v"+suffix+".mat"
