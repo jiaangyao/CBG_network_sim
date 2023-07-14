@@ -7,13 +7,13 @@ Classes:
     NoisyCurrentSource -- a Gaussian whitish noise current.
     ACSource           -- a sine modulated current.
 
-:copyright: Copyright 2006-2016 by the PyNN team, see AUTHORS.
+:copyright: Copyright 2006-2023 by the PyNN team, see AUTHORS.
 :license: CeCILL, see LICENSE for details.
 
 """
 
 from neuron import h
-import numpy
+import numpy as np
 from pyNN.standardmodels import electrodes, build_translations, StandardCurrentSource
 from pyNN.parameters import ParameterSpace, Sequence
 from pyNN.neuron import simulator
@@ -93,8 +93,8 @@ class NeuronCurrentSource(StandardCurrentSource):
         if not (times >= 0.0).all():
             raise ValueError("Step current cannot accept negative timestamps.")
         # ensure that times provided are of strictly increasing magnitudes
-        dt_times = numpy.diff(times)
-        if not all(dt_times>0.0):
+        dt_times = np.diff(times)
+        if not all(dt_times > 0.0):
             raise ValueError("Step current timestamps should be monotonically increasing.")
         # map timestamps to actual simulation time instants based on specified dt
         for ind in range(len(times)):
@@ -113,13 +113,15 @@ class NeuronCurrentSource(StandardCurrentSource):
     def set_native_parameters(self, parameters):
         parameters.evaluate(simplify=True)
         for name, value in parameters.items():
-            if name == "amplitudes": # key used only by StepCurrentSource
+            if name == "amplitudes":  # key used only by StepCurrentSource
                 step_times = parameters["times"].value
                 step_amplitudes = parameters["amplitudes"].value
-                step_times, step_amplitudes = self._check_step_times(step_times, step_amplitudes, simulator.state.dt)
+                step_times, step_amplitudes = self._check_step_times(
+                    step_times, step_amplitudes, simulator.state.dt)
                 parameters["times"].value = step_times
                 parameters["amplitudes"].value = step_amplitudes
-            if isinstance(value, Sequence):  # this shouldn't be necessary, but seems to prevent a segfault
+            if isinstance(value, Sequence):
+                # this shouldn't be necessary, but seems to prevent a segfault
                 value = value.value
             object.__setattr__(self, name, value)
         self._reset()
@@ -128,7 +130,6 @@ class NeuronCurrentSource(StandardCurrentSource):
         return ParameterSpace(dict((k, self.__getattribute__(k)) for k in self.get_native_names()))
 
     def inject_into(self, cells):
-        __doc__ = StandardCurrentSource.inject_into.__doc__
         for id in cells:
             if id.local:
                 if not id.celltype.injectable:
@@ -145,8 +146,8 @@ class NeuronCurrentSource(StandardCurrentSource):
     def record(self):
         self.itrace = h.Vector()
         self.itrace.record(self._devices[0]._ref_i)
-        self.record_times = h.Vector()
-        self.record_times.record(h._ref_t)
+        self.recorded_times = h.Vector()
+        self.recorded_times.record(h._ref_t)
 
     def _get_data(self):
         # NEURON and pyNN have different concepts of current initiation times
@@ -155,9 +156,9 @@ class NeuronCurrentSource(StandardCurrentSource):
         # This requires removing the first element from the current Vector
         # as NEURON computes the currents one time step later. The vector length
         # is compensated by repeating the last recorded value of current.
-        t_arr = numpy.array(self.record_times)
-        i_arr = numpy.array(self.itrace)[1:]
-        i_arr = numpy.append(i_arr, i_arr[-1])
+        t_arr = np.array(self.recorded_times)
+        i_arr = np.array(self.itrace)[1:]
+        i_arr = np.append(i_arr, i_arr[-1])
         return (t_arr, i_arr)
 
 
@@ -214,9 +215,14 @@ class ACSource(NeuronCurrentSource, electrodes.ACSource):
     def _generate(self):
         # Not efficient at all... Is there a way to have those vectors computed on the fly ?
         # Otherwise should have a buffer mechanism
-        self.times = numpy.arange(self.start, self.stop + simulator.state.dt, simulator.state.dt)
-        tmp = numpy.arange(0, self.stop - self.start, simulator.state.dt)
-        self.amplitudes = self.offset + self.amplitude * numpy.sin(tmp * 2 * numpy.pi * self.frequency / 1000. + 2 * numpy.pi * self.phase / 360)
+        temp_num_t = int(round(
+            ((self.stop + simulator.state.dt) - self.start) / simulator.state.dt
+        ))
+        tmp = simulator.state.dt * np.arange(temp_num_t)
+        self.times = tmp + self.start
+        self.amplitudes = self.offset + self.amplitude * np.sin(
+            tmp * 2 * np.pi * self.frequency / 1000. + 2 * np.pi * self.phase / 360
+        )
         self.amplitudes[-1] = 0.0
 
 
@@ -240,9 +246,10 @@ class NoisyCurrentSource(NeuronCurrentSource, electrodes.NoisyCurrentSource):
         self._generate()
 
     def _generate(self):
-        ## Not efficient at all... Is there a way to have those vectors computed on the fly ?
-        ## Otherwise should have a buffer mechanism
-        self.times = numpy.arange(self.start, self.stop, max(self.dt, simulator.state.dt))
-        self.times = numpy.append(self.times, self.stop)
-        self.amplitudes = self.mean + self.stdev * numpy.random.randn(len(self.times))
+        # Not efficient at all... Is there a way to have those vectors computed on the fly ?
+        # Otherwise should have a buffer mechanism
+        temp_num_t = int(round((self.stop - self.start) / max(self.dt, simulator.state.dt)))
+        self.times = self.start + max(self.dt, simulator.state.dt) * np.arange(temp_num_t)
+        self.times = np.append(self.times, self.stop)
+        self.amplitudes = self.mean + self.stdev * np.random.randn(len(self.times))
         self.amplitudes[-1] = 0.0
